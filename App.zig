@@ -247,7 +247,7 @@ const Fixture = struct {
 
 /// Every color, grays too, becomes `color`.
 fn flat(comptime color: kosm.Color) Recolor {
-    return .{ .palette = kosm.Palette.resolve(test_palette), .colors = .{ .only = &.{color} }, .mode = .nearest, .grays = .match };
+    return .{ .theme = .from(.{ .palette = test_palette, .mode = .dark }), .colors = .{ .only = &.{color} }, .mode = .nearest, .grays = .match };
 }
 
 const test_palette: kosm.Palette = .{ .black = kosm.hex("101010"), .white = kosm.hex("f0f0f0"), .blue = kosm.hex("5e81ac"), .red = kosm.hex("bf616a") };
@@ -297,6 +297,7 @@ test "BeautyLine's known gradients take their fields' colors and the rest follow
     defer fixture.deinit();
     const theme: kosm.Theme = .from(.{ .palette = test_palette, .mode = .dark });
     var set: BeautyLine = .from(theme);
+    set.all = null;
     set.blue_cyan = .{ .start = kosm.hex("111111"), .end = kosm.hex("222222") };
     set.rest = flat(kosm.hex("333333"));
     var colors: Colors = .{ .allocator = fixture.arena.allocator(), .coloring = .{ .beautyline = set } };
@@ -336,7 +337,7 @@ test "a recolor with no colors to pick fails naming the folder" {
     try fixture.init();
     defer fixture.deinit();
     var set: BeautyLine = .from(.from(.{ .palette = test_palette, .mode = .dark }));
-    set.rest.colors = .{ .only = &.{} };
+    set.all.?.colors = .{ .only = &.{} };
     const app: App = .{ .icons = .{ .beautyline = set } };
     try testing.expectError(error.AppFailed, app.apply(&fixture.output));
     try testing.expectEqual(0, fixture.plan.files.items.len);

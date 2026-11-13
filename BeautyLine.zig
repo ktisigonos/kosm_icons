@@ -1,7 +1,6 @@
 //! BeautyLine (Garuda Linux, GPL-3.0): outline icons drawn in two-color gradients. Its most used
 //! gradients become exact theme colors, named after the hues they go between; every other
-//! color follows `rest`. By default every hue named is the accent or secondary nearer it
-//! (`Recolor.accents`), so icons take the theme's two accents.
+//! color follows `rest`. By default `all` gives every icon the theme's accent and secondary.
 
 const BeautyLine = @This();
 
@@ -11,7 +10,7 @@ const Gradient = @import("Gradient.zig");
 const Recolor = @import("Recolor.zig");
 const svg = @import("svg.zig");
 
-/// BeautyLine's `#5570ff` -> `#4dd3ff`. Default: `Recolor.accents`' blue -> cyan.
+/// BeautyLine's `#5570ff` -> `#4dd3ff`. Default: the palette's blue -> cyan.
 blue_cyan: Gradient,
 /// BeautyLine's `#0357d1` -> `#27cdfc`, its folders. Default: sky -> cyan.
 deep_blue_cyan: Gradient,
@@ -39,12 +38,14 @@ pink_peach: Gradient,
 coral_pink: Gradient,
 /// Every color the gradients above don't cover. Default: `Recolor.from(theme)`.
 rest: Recolor,
-/// Recolors every color this way instead, gradients included, when set. Default: null.
+/// Recolors every color this way instead, gradients included, when set. Default:
+/// `Recolor.from(theme)`, the accent and secondary; null uses the gradients and `rest`.
 all: ?Recolor = null,
 
-/// The gradients and the rest in the theme's accent and secondary.
+/// Every color in the theme's accent and secondary; the gradients and the rest, when used, in
+/// its palette.
 pub fn from(theme: kosm.Theme) BeautyLine {
-    const palette = Recolor.accents(theme);
+    const palette = theme.palette;
     return .{
         .blue_cyan = .{ .start = palette.blue, .end = palette.cyan },
         .deep_blue_cyan = .{ .start = palette.sky, .end = palette.cyan },
@@ -60,6 +61,7 @@ pub fn from(theme: kosm.Theme) BeautyLine {
         .pink_peach = .{ .start = palette.pink, .end = palette.orange },
         .coral_pink = .{ .start = palette.red, .end = palette.pink },
         .rest = .from(theme),
+        .all = .from(theme),
     };
 }
 

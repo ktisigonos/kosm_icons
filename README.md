@@ -7,7 +7,7 @@ by name. GTK, KDE and other desktops pick it by `App.themeName`; `kosm_base` pas
   dependency): written whole to `~/.local/share/icons/kosm`, every SVG recolored. Its most
   used gradients become exact theme colors (fields named after the hues they go between,
   `blue_cyan`, `orange_yellow`, ...); every other color follows `rest`, or `all` recolors
-  everything one way. By default all of them take the theme's accent and secondary.
+  everything one way, by default the theme's accent and secondary.
 - **A system theme** (`.system = .{ .name = "Papirus-Dark" }`): used as is, nothing written.
   With `recolor` set it is copied into `directory` recolored, and picked from there.
 
@@ -23,20 +23,18 @@ as a color property's value; other named colors stay as they are. Alpha never ch
 ## Recolor
 
 `Recolor.from(theme)` is the theme's accent and secondary: each color becomes the one it looks
-nearest, grays a ramp. Its palette is `Recolor.accents(theme)`, the theme's palette with every
-hue made the accent or secondary nearer it; `.palette = theme.palette` recolors by the whole
-palette instead. Each color matches one of `colors` and becomes what `mode` makes of it; alpha
-never changes.
+nearest, grays a ramp. Each color matches one of `colors` and becomes what `mode` makes of it;
+alpha never changes.
 
 ```zig
-const p = theme.palette;
-icons.icons.?.beautyline.rest = .{ .palette = p, .colors = .{ .only = &.{ p.blue, theme.roles.accent } }, .mode = .nearest };
+icons.icons.?.beautyline.all = .{ .theme = theme, .colors = .{ .roles = &.{ .accent, .link } }, .mode = .hue };
+icons.icons.?.beautyline.all = .{ .theme = theme, .colors = .{ .except = &.{ .yellow } } };
 ```
 
 | Field | Default |
 |---|---|
-| `palette` | `Recolor.accents(theme)`: the hues `colors` names, and grays' black and white |
-| `colors` | `.all`, the palette's twelve hues; `.{ .except = &.{ .yellow } }` all but those; `.{ .only = &.{ ... } }` these colors, palette or raw, the first listed winning a tie |
+| `theme` | the theme whose hues and roles `colors` names, and whose black and white grays fall between |
+| `colors` | `.all`, the palette's twelve hues (`from`: the accent and secondary); `.{ .except = &.{ .yellow } }` all but those; `.{ .roles = &.{ .accent } }` these roles; `.{ .only = &.{ ... } }` these colors, the first listed winning a tie |
 | `mode` | `.nearest` (`.hue_and_chroma` when built without `from`) |
 | `grays` | `.ramp` |
 | `gray_chroma` | 0.04: below this OKLCH chroma a color is gray |
@@ -68,8 +66,8 @@ and `.match` it makes them flat. No colors to pick, or a blend outside 0..1, is 
 `System`: `name`, `recolor` (null: used as is), `path` (null: `/usr/share/icons/<name>`).
 
 `BeautyLine`: one `Gradient` (`start`, `end`) per gradient, each listing BeautyLine's colors it
-replaces and defaulting to `Recolor.accents(theme)`' colors of the hues it names, then `rest`
-(`Recolor.from(theme)`) and `all` (null).
+replaces and defaulting to the palette's colors of the hues it names, then `rest`
+(`Recolor.from(theme)`) and `all` (`Recolor.from(theme)`; null uses the gradients and `rest`).
 
 ## Optional dependencies
 

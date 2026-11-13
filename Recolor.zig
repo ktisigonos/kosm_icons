@@ -6,8 +6,9 @@ const Recolor = @This();
 const std = @import("std");
 const kosm = @import("kosm");
 
-/// The palette `colors` names hues of, and whose black and white grays fall between.
-palette: kosm.Palette.Resolved,
+/// The theme whose palette hues and roles `colors` names, and between whose palette's black and
+/// white grays fall.
+theme: kosm.Theme,
 /// The colors icons may take. Default: `.all`, the palette's twelve hues.
 colors: Colors = .all,
 /// What a color becomes from its match. Default: `.hue_and_chroma`.
@@ -23,7 +24,11 @@ pub const Colors = union(enum) {
     all,
     /// The palette's hues but these: `.{ .except = &.{ .yellow, .lime } }`.
     except: []const kosm.Palette.Hue,
-    /// These colors: `.{ .only = &.{ palette.blue, theme.roles.accent, kosm.hex("c0ff00") } }`.
+    /// The theme's roles: `.{ .roles = &.{ .accent, .secondary } }`. Of two equally good
+    /// matches, the first listed wins.
+    roles: []const kosm.Theme.Roles.Name,
+    /// These colors: `.{ .only = &.{ kosm.hex("2e8799"), kosm.hex("c0ff00") } }`. A list of
+    /// colors only known when the kosmos runs must be a top-level constant.
     /// Of two equally good matches, the first listed wins.
     only: []const kosm.Color,
 };
@@ -54,31 +59,15 @@ pub const Grays = enum {
     match,
 };
 
-/// The theme's accent and secondary: each color becomes the one of them it looks nearest,
-/// grays fall between the palette's black and white. `.palette = theme.palette` recolors by
-/// the whole palette instead.
+/// The theme's accent and secondary: each color becomes the one it looks nearest, grays fall
+/// between the palette's black and white.
 pub fn from(theme: kosm.Theme) Recolor {
-    return .{ .palette = accents(theme), .mode = .nearest };
-}
-
-/// The theme's palette with every hue made its accent or secondary, whichever's hue is nearer
-/// that wheel position (the accent on a tie); black, white and gray stay. Roles of one hue
-/// leave only the accent.
-pub fn accents(theme: kosm.Theme) kosm.Palette.Resolved {
-    const accent = theme.roles.accent;
-    const secondary = theme.roles.secondary;
-    var palette = theme.palette;
-    inline for (comptime std.enums.values(kosm.Palette.Hue)) |position| {
-        const wheel_hue = wheel_hues.get(position);
-        const nearer_secondary = hueDistance(wheel_hue, secondary.hue) < hueDistance(wheel_hue, accent.hue);
-        @field(palette, @tagName(position)) = if (nearer_secondary) secondary else accent;
-    }
-    return palette;
+    return .{ .theme = theme, .colors = .{ .roles = &.{ .accent, .secondary } }, .mode = .nearest };
 }
 
 /// Why this recolor cannot run, or null: there must be a color to pick and a blend in 0..1.
 pub fn problem(recolor: Recolor) ?[]const u8 {
-    if (recolor.candidateCount() == 0) return "recolor has no colors: `.only` is empty or `.except` leaves out every hue";
+    if (recolor.candidateCount() == 0) return "recolor has no colors: `.only` or `.roles` is empty, or `.except` leaves out every hue";
     if (recolor.mode == .blend and !(recolor.mode.blend >= 0 and recolor.mode.blend <= 1)) return "recolor's `.blend` is outside 0..1";
     return null;
 }
@@ -124,8 +113,14 @@ const Iterator = struct {
     index: usize = 0,
 
     fn next(iterator: *Iterator) ?Candidate {
-        const palette = iterator.recolor.palette;
+        const theme = iterator.recolor.theme;
         switch (iterator.recolor.colors) {
+            .roles => |names| {
+                if (iterator.index >= names.len) return null;
+                defer iterator.index += 1;
+                const color = theme.roles.get(names[iterator.index]);
+                return .{ .color = color, .position = wheelPosition(color.hue) };
+            },
             .only => |colors| {
                 if (iterator.index >= colors.len) return null;
                 defer iterator.index += 1;
@@ -138,7 +133,7 @@ const Iterator = struct {
                     const position = positions[iterator.index];
                     iterator.index += 1;
                     if (iterator.recolor.colors == .except and std.mem.indexOfScalar(kosm.Palette.Hue, iterator.recolor.colors.except, position) != null) continue;
-                    return .{ .color = palette.get(position), .position = position };
+                    return .{ .color = theme.palette.get(position), .position = position };
                 }
                 return null;
             },
@@ -176,8 +171,8 @@ fn nearestByEye(recolor: Recolor, color: kosm.Color) kosm.Color {
 
 /// The palette's black-to-white ramp at `color`'s lightness.
 fn ramp(recolor: Recolor, color: kosm.Color) kosm.Color {
-    const black = recolor.palette.black;
-    const white = recolor.palette.white;
+    const black = recolor.theme.palette.black;
+    const white = recolor.theme.palette.white;
     const span = white.lightness - black.lightness;
     const amount = if (@abs(span) < 1e-9) 0 else std.math.clamp((color.lightness - black.lightness) / span, 0, 1);
     var mixed = black.mix(white, amount);
@@ -232,14 +227,14 @@ const wheel_hues: std.EnumArray(kosm.Palette.Hue, f64) = blk: {
 
 const testing = std.testing;
 
-fn testPalette() kosm.Palette.Resolved {
-    return kosm.Palette.resolve(.{
+fn testTheme() kosm.Theme {
+    return .from(.{ .palette = .{
         .black = kosm.hex("101010"),
         .white = kosm.hex("f0f0f0"),
         .red = kosm.hex("bf616a"),
         .blue = kosm.hex("5e81ac"),
         .cyan = kosm.hex("88c0d0"),
-    });
+    }, .mode = .dark });
 }
 
 fn expectColor(expected: kosm.Color, actual: kosm.Color) !void {
@@ -250,10 +245,10 @@ fn expectColor(expected: kosm.Color, actual: kosm.Color) !void {
 }
 
 test "a color takes the hue and chroma of its wheel position's palette color, keeping lightness and alpha" {
-    const recolor: Recolor = .{ .palette = testPalette() };
+    const recolor: Recolor = .{ .theme = testTheme() };
     var source = kosm.hex("5570ff");
     source.alpha = 0.5;
-    const blue = recolor.palette.blue;
+    const blue = recolor.theme.palette.blue;
     try expectColor(.{ .lightness = source.lightness, .chroma = blue.chroma, .hue = blue.hue, .alpha = 0.5 }, recolor.apply(source));
 }
 
@@ -266,8 +261,9 @@ test "wheel positions follow the sRGB wheel, across the wrap at 0 deg" {
 }
 
 test "an excepted hue goes to the nearest hue left, across the wrap" {
-    const palette = testPalette();
-    const recolor: Recolor = .{ .palette = palette, .colors = .{ .except = &.{ .red, .pink, .orange } } };
+    const theme = testTheme();
+    const palette = theme.palette;
+    const recolor: Recolor = .{ .theme = theme, .colors = .{ .except = &.{ .red, .pink, .orange } } };
     // Red's neighbours left are magenta (two positions back) and yellow (two on); pure red is
     // nearer magenta's pure hue in OKLCH.
     const result = recolor.apply(kosm.hex("ff0000"));
@@ -275,34 +271,35 @@ test "an excepted hue goes to the nearest hue left, across the wrap" {
 }
 
 test "only listed colors are taken, raw or from the palette, by their own hue's position" {
-    const palette = testPalette();
+    const theme = testTheme();
+    const palette = theme.palette;
     const lime = kosm.hex("c0ff00");
-    const recolor: Recolor = .{ .palette = palette, .colors = .{ .only = &.{ palette.blue, lime } } };
+    const recolor: Recolor = .{ .theme = theme, .colors = .{ .only = &.{ palette.blue, lime } } };
     try testing.expectApproxEqAbs(lime.hue, recolor.apply(kosm.hex("ffff00")).hue, 1e-9);
     try testing.expectApproxEqAbs(palette.blue.hue, recolor.apply(kosm.hex("8000ff")).hue, 1e-9);
-    const first_wins: Recolor = .{ .palette = palette, .colors = .{ .only = &.{ lime, lime, palette.blue } } };
+    const first_wins: Recolor = .{ .theme = theme, .colors = .{ .only = &.{ lime, lime, palette.blue } } };
     try testing.expectApproxEqAbs(lime.hue, first_wins.apply(kosm.hex("80ff00")).hue, 1e-9);
 }
 
 test "each mode makes what it says of the color and its match" {
-    const palette = testPalette();
+    const theme = testTheme();
     const source = kosm.hex("fd5900");
     const red = kosm.hex("ff0000");
     const only_red: Colors = .{ .only = &.{red} };
 
-    const hue = (Recolor{ .palette = palette, .colors = only_red, .mode = .hue }).apply(source);
+    const hue = (Recolor{ .theme = theme, .colors = only_red, .mode = .hue }).apply(source);
     try expectColor(.{ .lightness = source.lightness, .chroma = source.chroma, .hue = red.hue }, hue);
 
     var translucent = source;
     translucent.alpha = 0.25;
     var expected_red = red;
     expected_red.alpha = 0.25;
-    try expectColor(expected_red, (Recolor{ .palette = palette, .colors = only_red, .mode = .nearest }).apply(translucent));
+    try expectColor(expected_red, (Recolor{ .theme = theme, .colors = only_red, .mode = .nearest }).apply(translucent));
 
-    const blend = (Recolor{ .palette = palette, .colors = only_red, .mode = .{ .blend = 0.5 } }).apply(source);
+    const blend = (Recolor{ .theme = theme, .colors = only_red, .mode = .{ .blend = 0.5 } }).apply(source);
     try expectColor(source.mix(red, 0.5), blend);
 
-    const custom = (Recolor{ .palette = palette, .colors = only_red, .mode = .{ .custom = &darkest } }).apply(translucent);
+    const custom = (Recolor{ .theme = theme, .colors = only_red, .mode = .{ .custom = &darkest } }).apply(translucent);
     try testing.expectApproxEqAbs(@min(source.lightness, red.lightness), custom.lightness, 1e-9);
     try testing.expectEqual(0.25, custom.alpha);
 }
@@ -312,30 +309,31 @@ fn darkest(color: kosm.Color, match: kosm.Color) kosm.Color {
 }
 
 test "nearest matches by lightness too, not only hue" {
-    const palette = testPalette();
+    const theme = testTheme();
     const dark_blue = kosm.hex("000080");
-    const recolor: Recolor = .{ .palette = palette, .colors = .{ .only = &.{ kosm.hex("ff8080"), dark_blue } }, .mode = .nearest };
+    const recolor: Recolor = .{ .theme = theme, .colors = .{ .only = &.{ kosm.hex("ff8080"), dark_blue } }, .mode = .nearest };
     // A dark red is nearer the dark blue as the eye sees it than the light red.
     try expectColor(dark_blue, recolor.apply(kosm.hex("400000")));
 }
 
 test "grays ramp between black and white, stay, or match like colors" {
-    const palette = testPalette();
-    const ramped: Recolor = .{ .palette = palette };
+    const theme = testTheme();
+    const palette = theme.palette;
+    const ramped: Recolor = .{ .theme = theme };
     try testing.expectApproxEqAbs(palette.white.lightness, ramped.apply(kosm.hex("ffffff")).lightness, 1e-9);
     try testing.expectApproxEqAbs(palette.black.lightness, ramped.apply(kosm.hex("000000")).lightness, 1e-9);
     const middle = ramped.apply(kosm.hex("777777"));
     try testing.expect(middle.lightness > palette.black.lightness and middle.lightness < palette.white.lightness);
 
     const gray = kosm.hex("808080");
-    try expectColor(gray, (Recolor{ .palette = palette, .grays = .keep }).apply(gray));
+    try expectColor(gray, (Recolor{ .theme = theme, .grays = .keep }).apply(gray));
     const red = kosm.hex("ff0000");
-    const flat: Recolor = .{ .palette = palette, .colors = .{ .only = &.{red} }, .mode = .nearest, .grays = .match };
+    const flat: Recolor = .{ .theme = theme, .colors = .{ .only = &.{red} }, .mode = .nearest, .grays = .match };
     try expectColor(red, flat.apply(gray));
 }
 
 test "by default every color becomes the accent or secondary it looks nearest, grays a ramp" {
-    const theme: kosm.Theme = .from(.{ .palette = .{ .black = kosm.hex("101010"), .white = kosm.hex("f0f0f0"), .red = kosm.hex("bf616a"), .blue = kosm.hex("5e81ac"), .cyan = kosm.hex("88c0d0") }, .mode = .dark });
+    const theme = testTheme();
     const recolor: Recolor = .from(theme);
     try expectColor(theme.roles.accent, recolor.apply(kosm.hex("4dd3ff")));
     try expectColor(theme.roles.secondary, recolor.apply(kosm.hex("0000ff")));
@@ -344,23 +342,23 @@ test "by default every color becomes the accent or secondary it looks nearest, g
     try expectColor(theme.palette.black, recolor.apply(kosm.hex("000000")));
 }
 
-test "the accent palette splits the wheel between accent and secondary, the accent winning ties" {
-    const palette: kosm.Palette = .{ .black = kosm.hex("101010"), .white = kosm.hex("f0f0f0"), .red = kosm.hex("bf616a"), .blue = kosm.hex("5e81ac"), .cyan = kosm.hex("88c0d0") };
-    const theme: kosm.Theme = .from(.{ .palette = palette, .mode = .dark, .roles = .{ .accent = kosm.hex("ff0000"), .secondary = kosm.hex("00ffff") } });
-    const split = accents(theme);
-    try expectColor(theme.roles.accent, split.orange);
-    try expectColor(theme.roles.secondary, split.sky);
-    try expectColor(theme.palette.white, split.white);
-    var darker = theme.roles.accent;
-    darker.lightness /= 2;
-    const same_hue: kosm.Theme = .from(.{ .palette = palette, .mode = .dark, .roles = .{ .accent = theme.roles.accent, .secondary = darker } });
-    for (std.enums.values(kosm.Palette.Hue)) |position| try expectColor(same_hue.roles.accent, accents(same_hue).get(position));
+test "listed roles are taken by their own hue's position, the first winning a tie" {
+    var theme = testTheme();
+    theme.roles.success = kosm.hex("c0ff00");
+    const recolor: Recolor = .{ .theme = theme, .colors = .{ .roles = &.{ .secondary, .success } } };
+    try testing.expectApproxEqAbs(theme.roles.success.hue, recolor.apply(kosm.hex("ffff00")).hue, 1e-9);
+    try testing.expectApproxEqAbs(theme.roles.secondary.hue, recolor.apply(kosm.hex("8000ff")).hue, 1e-9);
+    theme.roles.link = theme.roles.success;
+    theme.roles.link.chroma /= 2;
+    const first_wins: Recolor = .{ .theme = theme, .colors = .{ .roles = &.{ .link, .success } }, .mode = .hue_and_chroma };
+    try testing.expectApproxEqAbs(theme.roles.link.chroma, first_wins.apply(kosm.hex("80ff00")).chroma, 1e-9);
 }
 
 test "no colors to pick or a blend outside 0..1 is a problem" {
-    const palette = testPalette();
-    try testing.expectEqual(null, (Recolor{ .palette = palette }).problem());
-    try testing.expect((Recolor{ .palette = palette, .colors = .{ .only = &.{} } }).problem() != null);
-    try testing.expect((Recolor{ .palette = palette, .colors = .{ .except = std.enums.values(kosm.Palette.Hue) } }).problem() != null);
-    try testing.expect((Recolor{ .palette = palette, .mode = .{ .blend = 1.5 } }).problem() != null);
+    const theme = testTheme();
+    try testing.expectEqual(null, (Recolor{ .theme = theme }).problem());
+    try testing.expect((Recolor{ .theme = theme, .colors = .{ .only = &.{} } }).problem() != null);
+    try testing.expect((Recolor{ .theme = theme, .colors = .{ .roles = &.{} } }).problem() != null);
+    try testing.expect((Recolor{ .theme = theme, .colors = .{ .except = std.enums.values(kosm.Palette.Hue) } }).problem() != null);
+    try testing.expect((Recolor{ .theme = theme, .mode = .{ .blend = 1.5 } }).problem() != null);
 }
