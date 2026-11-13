@@ -69,7 +69,7 @@ const Coloring = union(enum) {
     recolor: Recolor,
 };
 
-/// Copies the theme in `source` into `directory`: SVGs recolored (but symbolic ones),
+/// Copies the theme in `source` into `directory`: SVGs recolored,
 /// index.theme renamed, links kept, every other file as is.
 fn generate(self: App, output: *kosm.Output, source: []const u8, coloring: Coloring) !void {
     const allocator = output.allocator;
@@ -110,11 +110,10 @@ fn keptTarget(output: *kosm.Output, source: []const u8, path: []const u8, target
     return resolved;
 }
 
-/// Whether the file at `path` is an SVG to recolor: icons named or filed `symbolic` are colored
-/// by toolkits and stay as they are.
+/// Whether the file at `path` is an SVG to recolor. Symbolic icons are too: many themes draw
+/// them in fixed colors, and a toolkit that colors one overrides whatever colors it has.
 fn isRecolored(path: []const u8) bool {
-    if (!std.mem.endsWith(u8, path, ".svg")) return false;
-    return std.mem.indexOf(u8, path, "symbolic") == null;
+    return std.mem.endsWith(u8, path, ".svg");
 }
 
 /// `content` with its first `Name=` line naming the theme `name`.
@@ -253,7 +252,7 @@ fn flat(comptime color: kosm.Color) Recolor {
 
 const test_palette: kosm.Palette = .{ .black = kosm.hex("101010"), .white = kosm.hex("f0f0f0"), .blue = kosm.hex("5e81ac"), .red = kosm.hex("bf616a") };
 
-test "a recolored system theme copies its files, recolors SVGs but symbolic ones, and keeps links" {
+test "a recolored system theme copies its files, recolors SVGs, symbolic ones too, and keeps links" {
     var fixture: Fixture = undefined;
     try fixture.init();
     defer fixture.deinit();
@@ -272,7 +271,7 @@ test "a recolored system theme copies its files, recolors SVGs but symbolic ones
 
     try testing.expectEqualStrings("[Icon Theme]\nName=frost\nInherits=hicolor\n", fixture.planned("~/icons/kosm/index.theme"));
     try testing.expectEqualStrings("<path fill=\"#00ff00\"/>", fixture.planned("~/icons/kosm/apps/firefox.svg"));
-    try testing.expectEqualStrings("<path fill=\"#ff0000\"/>", fixture.planned("~/icons/kosm/apps/go-symbolic.svg"));
+    try testing.expectEqualStrings("<path fill=\"#00ff00\"/>", fixture.planned("~/icons/kosm/apps/go-symbolic.svg"));
     try testing.expectEqualStrings("GPL", fixture.planned("~/icons/kosm/COPYING"));
     try testing.expectEqualStrings("(not planned)", fixture.planned("~/icons/kosm/icon-theme.cache"));
     try testing.expectEqualStrings("firefox.svg", fixture.linked("~/icons/kosm/apps/browser.svg"));

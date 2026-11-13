@@ -1,6 +1,6 @@
 //! BeautyLine (Garuda Linux, GPL-3.0): outline icons drawn in two-color gradients. Its most used
 //! gradients become exact theme colors, named after the hues they go between; every other
-//! color follows `rest`. Icons named `symbolic` are left alone: toolkits color them.
+//! color follows `rest`.
 
 const BeautyLine = @This();
 

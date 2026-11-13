@@ -11,7 +11,8 @@ by name. GTK, KDE and other desktops pick it by `App.themeName`; `kosm_base` pas
 - **A system theme** (`.system = .{ .name = "Papirus-Dark" }`): used as is, nothing written.
   With `recolor` set it is copied into `directory` recolored, and picked from there.
 
-Icons named or filed `symbolic` are never recolored: GTK and KDE color them. Links stay links;
+Symbolic icons are recolored too: BeautyLine draws most of them in its own colors, and GTK or
+KDE, where they color one, override the file's colors anyway. Links stay links;
 a relative link pointing outside the theme becomes an absolute one. A diff shows the theme as
 one line. After an apply, `gtk-update-icon-cache` refreshes GTK's cache of the folder; a
 failure is a warning. Running programs may keep the old icons until restarted.
