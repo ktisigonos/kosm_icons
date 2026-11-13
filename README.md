@@ -21,11 +21,37 @@ as a color property's value; other named colors stay as they are. Alpha never ch
 
 ## Recolor
 
-| Mode | What each color becomes |
+`Recolor.from(theme)` is the theme's palette, shading kept. Each color matches one of `colors`
+and becomes what `mode` makes of it; alpha never changes.
+
+```zig
+const p = theme.palette;
+icons.icons.?.beautyline.rest = .{ .palette = p, .colors = .{ .only = &.{ p.blue, theme.roles.accent } }, .mode = .nearest };
+```
+
+| Field | Default |
 |---|---|
-| `.palette` (`Nearest.from(theme)`) | the palette color of its wheel position (nearest by hue to the pure sRGB wheel: `#ff0000` red, `#ff8000` orange, ...), with its own lightness; grays (chroma below `gray_chroma`, 0.04) fall between the palette's black and white |
-| `.tint = color` | `color`'s hue, with its own lightness and chroma; grays stay gray |
-| `.flat = color` | `color` |
+| `palette` | the theme's palette: the hues `colors` names, and grays' black and white |
+| `colors` | `.all`, the palette's twelve hues; `.{ .except = &.{ .yellow } }` all but those; `.{ .only = &.{ ... } }` these colors, palette or raw, the first listed winning a tie |
+| `mode` | `.hue_and_chroma` |
+| `grays` | `.ramp` |
+| `gray_chroma` | 0.04: below this OKLCH chroma a color is gray |
+
+| `mode` | Matches by | The color becomes |
+|---|---|---|
+| `.hue_and_chroma` | hue | the match's hue and chroma, its own lightness: shading stays |
+| `.hue` | hue | the match's hue, its own lightness and chroma |
+| `.nearest` | how near it looks (OKLab) | the match exactly |
+| `.{ .blend = amount }` | hue | partway to the match, 0..1 |
+| `.{ .custom = function }` | hue | `function(color, match)` |
+
+Matching by hue goes to the color whose wheel position (the pure sRGB hue nearest it:
+`#ff0000` red, `#ff8000` orange, ...) is nearest: icons are drawn in sRGB colors picked by
+name, whatever the palette's own hues. A listed color counts as the position nearest its hue.
+
+`grays`: `.ramp` between the palette's black and white by lightness, `.keep` as they are,
+`.match` like any color. One color with `.hue` and `.keep` tints the icons; with `.nearest`
+and `.match` it makes them flat. No colors to pick, or a blend outside 0..1, is an error.
 
 ## Fields
 
@@ -38,7 +64,7 @@ as a color property's value; other named colors stay as they are. Alpha never ch
 `System`: `name`, `recolor` (null: used as is), `path` (null: `/usr/share/icons/<name>`).
 
 `BeautyLine`: one `Gradient` (`start`, `end`) per gradient, each listing BeautyLine's colors it
-replaces, then `rest` (`.palette` from the theme) and `all` (null).
+replaces, then `rest` (`Recolor.from(theme)`) and `all` (null).
 
 ## Optional dependencies
 

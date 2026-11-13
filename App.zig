@@ -7,7 +7,7 @@ const std = @import("std");
 const kosm = @import("kosm");
 const sources = @import("sources");
 const svg = @import("svg.zig");
-const Recolor = @import("recolor.zig").Recolor;
+const Recolor = @import("Recolor.zig");
 const BeautyLine = @import("BeautyLine.zig");
 const System = @import("System.zig");
 
@@ -74,6 +74,7 @@ const Coloring = union(enum) {
 fn generate(self: App, output: *kosm.Output, source: []const u8, coloring: Coloring) !void {
     const allocator = output.allocator;
     var colors: Colors = .{ .allocator = allocator, .coloring = coloring };
+    if (colors.rule().problem()) |problem| return output.fail(self.directory, "{s}", .{problem});
     const display_name = try output.displayName(self.directory, self.name);
     for (try output.tree(source)) |entry| {
         // GTK's cache of the source folder; the reload writes one for this folder.
@@ -245,6 +246,11 @@ const Fixture = struct {
     }
 };
 
+/// Every color, grays too, becomes `color`.
+fn flat(comptime color: kosm.Color) Recolor {
+    return .{ .palette = kosm.Palette.resolve(test_palette), .colors = .{ .only = &.{color} }, .mode = .nearest, .grays = .match };
+}
+
 const test_palette: kosm.Palette = .{ .black = kosm.hex("101010"), .white = kosm.hex("f0f0f0"), .blue = kosm.hex("5e81ac"), .red = kosm.hex("bf616a") };
 
 test "a recolored system theme copies its files, recolors SVGs but symbolic ones, and keeps links" {
@@ -259,9 +265,9 @@ test "a recolored system theme copies its files, recolors SVGs but symbolic ones
     try fixture.tmp.dir.symLink(testing.io, "firefox.svg", "themes/Frost/apps/browser.svg", .{});
     try fixture.tmp.dir.symLink(testing.io, "../../Other/x.svg", "themes/Frost/apps/other.svg", .{});
 
-    const green = kosm.hex("00ff00");
+    const green = comptime kosm.hex("00ff00");
     const theme_path = fixture.absolute("~/themes/Frost");
-    const recolored: App = .{ .icons = .{ .system = .{ .name = "Frost", .path = theme_path, .recolor = .{ .flat = green } } }, .directory = "~/icons/kosm" };
+    const recolored: App = .{ .icons = .{ .system = .{ .name = "Frost", .path = theme_path, .recolor = flat(green) } }, .directory = "~/icons/kosm" };
     try recolored.apply(&fixture.output);
 
     try testing.expectEqualStrings("[Icon Theme]\nName=frost\nInherits=hicolor\n", fixture.planned("~/icons/kosm/index.theme"));
@@ -293,7 +299,7 @@ test "BeautyLine's known gradients take their fields' colors and the rest follow
     const theme: kosm.Theme = .from(.{ .palette = test_palette, .mode = .dark });
     var set: BeautyLine = .from(theme);
     set.blue_cyan = .{ .start = kosm.hex("111111"), .end = kosm.hex("222222") };
-    set.rest = .{ .flat = kosm.hex("333333") };
+    set.rest = flat(kosm.hex("333333"));
     var colors: Colors = .{ .allocator = fixture.arena.allocator(), .coloring = .{ .beautyline = set } };
     const icon =
         \\<path fill="url(#a)" stroke="#5570ff"/>
@@ -306,7 +312,7 @@ test "BeautyLine's known gradients take their fields' colors and the rest follow
         \\<linearGradient id="b"><stop stop-color="#333333"/><stop offset="1" stop-color="#333333"/></linearGradient>
     , try colors.recolorSvg(icon));
 
-    set.all = .{ .flat = kosm.hex("444444") };
+    set.all = flat(kosm.hex("444444"));
     var all: Colors = .{ .allocator = fixture.arena.allocator(), .coloring = .{ .beautyline = set } };
     const recolored = try all.recolorSvg(icon);
     try testing.expectEqual(5, std.mem.count(u8, recolored, "#444444"));
@@ -324,4 +330,15 @@ test "the bundled BeautyLine is found and written as one group" {
     const groups = try fixture.plan.changedGroups(testing.allocator);
     defer testing.allocator.free(groups);
     try testing.expectEqual(1, groups.len);
+}
+
+test "a recolor with no colors to pick fails naming the folder" {
+    var fixture: Fixture = undefined;
+    try fixture.init();
+    defer fixture.deinit();
+    var set: BeautyLine = .from(.from(.{ .palette = test_palette, .mode = .dark }));
+    set.rest.colors = .{ .only = &.{} };
+    const app: App = .{ .icons = .{ .beautyline = set } };
+    try testing.expectError(error.AppFailed, app.apply(&fixture.output));
+    try testing.expectEqual(0, fixture.plan.files.items.len);
 }

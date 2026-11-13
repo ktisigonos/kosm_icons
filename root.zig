@@ -12,16 +12,13 @@ pub const BeautyLine = @import("BeautyLine.zig");
 pub const Gradient = @import("Gradient.zig");
 /// A theme installed on the system.
 pub const System = @import("System.zig");
-/// How an icon's colors change: by the palette, tinted or flat.
-pub const Recolor = @import("recolor.zig").Recolor;
-/// The palette `Recolor.palette` picks from.
-pub const Nearest = @import("Nearest.zig");
+/// How an icon's colors change: which colors they may take and how they move to them.
+pub const Recolor = @import("Recolor.zig");
 
 test {
     std.testing.refAllDecls(@This());
     std.testing.refAllDecls(App);
     std.testing.refAllDecls(BeautyLine);
-    std.testing.refAllDecls(Nearest);
-    std.testing.refAllDecls(@import("recolor.zig"));
+    std.testing.refAllDecls(Recolor);
     std.testing.refAllDecls(@import("svg.zig"));
 }

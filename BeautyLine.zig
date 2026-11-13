@@ -7,7 +7,7 @@ const BeautyLine = @This();
 const std = @import("std");
 const kosm = @import("kosm");
 const Gradient = @import("Gradient.zig");
-const Recolor = @import("recolor.zig").Recolor;
+const Recolor = @import("Recolor.zig");
 const svg = @import("svg.zig");
 
 /// BeautyLine's `#5570ff` -> `#4dd3ff`. Default: the palette's blue -> cyan.
@@ -36,7 +36,7 @@ pink_magenta: Gradient,
 pink_peach: Gradient,
 /// BeautyLine's `#fe7970` -> `#dc3282`. Default: red -> pink.
 coral_pink: Gradient,
-/// Every color the gradients above don't cover. Default: `.palette`, the theme's palette.
+/// Every color the gradients above don't cover. Default: `Recolor.from(theme)`.
 rest: Recolor,
 /// Recolors every color this way instead, gradients included, when set. Default: null.
 all: ?Recolor = null,
@@ -58,7 +58,7 @@ pub fn from(theme: kosm.Theme) BeautyLine {
         .pink_magenta = .{ .start = palette.pink, .end = palette.magenta },
         .pink_peach = .{ .start = palette.pink, .end = palette.orange },
         .coral_pink = .{ .start = palette.red, .end = palette.pink },
-        .rest = .{ .palette = .from(theme) },
+        .rest = .from(theme),
     };
 }
 

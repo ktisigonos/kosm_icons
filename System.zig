@@ -1,6 +1,6 @@
 //! An icon theme installed on the system, used by name or recolored.
 
-const Recolor = @import("recolor.zig").Recolor;
+const Recolor = @import("Recolor.zig");
 
 /// The theme's folder name (`Papirus-Dark`), which programs pick it by.
 name: []const u8,
