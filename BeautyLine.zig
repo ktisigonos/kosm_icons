@@ -1,6 +1,7 @@
 //! BeautyLine (Garuda Linux, GPL-3.0): outline icons drawn in two-color gradients. Its most used
 //! gradients become exact theme colors, named after the hues they go between; every other
-//! color follows `rest`.
+//! color follows `rest`. By default every hue named is the accent or secondary nearer it
+//! (`Recolor.accents`), so icons take the theme's two accents.
 
 const BeautyLine = @This();
 
@@ -10,7 +11,7 @@ const Gradient = @import("Gradient.zig");
 const Recolor = @import("Recolor.zig");
 const svg = @import("svg.zig");
 
-/// BeautyLine's `#5570ff` -> `#4dd3ff`. Default: the palette's blue -> cyan.
+/// BeautyLine's `#5570ff` -> `#4dd3ff`. Default: `Recolor.accents`' blue -> cyan.
 blue_cyan: Gradient,
 /// BeautyLine's `#0357d1` -> `#27cdfc`, its folders. Default: sky -> cyan.
 deep_blue_cyan: Gradient,
@@ -41,9 +42,9 @@ rest: Recolor,
 /// Recolors every color this way instead, gradients included, when set. Default: null.
 all: ?Recolor = null,
 
-/// The gradients in the theme's palette, the rest by wheel position.
+/// The gradients and the rest in the theme's accent and secondary.
 pub fn from(theme: kosm.Theme) BeautyLine {
-    const palette = theme.palette;
+    const palette = Recolor.accents(theme);
     return .{
         .blue_cyan = .{ .start = palette.blue, .end = palette.cyan },
         .deep_blue_cyan = .{ .start = palette.sky, .end = palette.cyan },

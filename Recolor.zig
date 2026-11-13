@@ -54,9 +54,26 @@ pub const Grays = enum {
     match,
 };
 
-/// The theme's palette, all of it, shading kept.
+/// The theme's accent and secondary: each color becomes the one of them it looks nearest,
+/// grays fall between the palette's black and white. `.palette = theme.palette` recolors by
+/// the whole palette instead.
 pub fn from(theme: kosm.Theme) Recolor {
-    return .{ .palette = theme.palette };
+    return .{ .palette = accents(theme), .mode = .nearest };
+}
+
+/// The theme's palette with every hue made its accent or secondary, whichever's hue is nearer
+/// that wheel position (the accent on a tie); black, white and gray stay. Roles of one hue
+/// leave only the accent.
+pub fn accents(theme: kosm.Theme) kosm.Palette.Resolved {
+    const accent = theme.roles.accent;
+    const secondary = theme.roles.secondary;
+    var palette = theme.palette;
+    inline for (comptime std.enums.values(kosm.Palette.Hue)) |position| {
+        const wheel_hue = wheel_hues.get(position);
+        const nearer_secondary = hueDistance(wheel_hue, secondary.hue) < hueDistance(wheel_hue, accent.hue);
+        @field(palette, @tagName(position)) = if (nearer_secondary) secondary else accent;
+    }
+    return palette;
 }
 
 /// Why this recolor cannot run, or null: there must be a color to pick and a blend in 0..1.
@@ -315,6 +332,29 @@ test "grays ramp between black and white, stay, or match like colors" {
     const red = kosm.hex("ff0000");
     const flat: Recolor = .{ .palette = palette, .colors = .{ .only = &.{red} }, .mode = .nearest, .grays = .match };
     try expectColor(red, flat.apply(gray));
+}
+
+test "by default every color becomes the accent or secondary it looks nearest, grays a ramp" {
+    const theme: kosm.Theme = .from(.{ .palette = .{ .black = kosm.hex("101010"), .white = kosm.hex("f0f0f0"), .red = kosm.hex("bf616a"), .blue = kosm.hex("5e81ac"), .cyan = kosm.hex("88c0d0") }, .mode = .dark });
+    const recolor: Recolor = .from(theme);
+    try expectColor(theme.roles.accent, recolor.apply(kosm.hex("4dd3ff")));
+    try expectColor(theme.roles.secondary, recolor.apply(kosm.hex("0000ff")));
+    const red = recolor.apply(kosm.hex("ff0000"));
+    try testing.expect(std.meta.eql(red, theme.roles.accent) or std.meta.eql(red, theme.roles.secondary));
+    try expectColor(theme.palette.black, recolor.apply(kosm.hex("000000")));
+}
+
+test "the accent palette splits the wheel between accent and secondary, the accent winning ties" {
+    const palette: kosm.Palette = .{ .black = kosm.hex("101010"), .white = kosm.hex("f0f0f0"), .red = kosm.hex("bf616a"), .blue = kosm.hex("5e81ac"), .cyan = kosm.hex("88c0d0") };
+    const theme: kosm.Theme = .from(.{ .palette = palette, .mode = .dark, .roles = .{ .accent = kosm.hex("ff0000"), .secondary = kosm.hex("00ffff") } });
+    const split = accents(theme);
+    try expectColor(theme.roles.accent, split.orange);
+    try expectColor(theme.roles.secondary, split.sky);
+    try expectColor(theme.palette.white, split.white);
+    var darker = theme.roles.accent;
+    darker.lightness /= 2;
+    const same_hue: kosm.Theme = .from(.{ .palette = palette, .mode = .dark, .roles = .{ .accent = theme.roles.accent, .secondary = darker } });
+    for (std.enums.values(kosm.Palette.Hue)) |position| try expectColor(same_hue.roles.accent, accents(same_hue).get(position));
 }
 
 test "no colors to pick or a blend outside 0..1 is a problem" {
