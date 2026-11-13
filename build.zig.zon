@@ -1,0 +1,29 @@
+.{
+    .name = .kosm_icons,
+    .version = "0.0.0",
+    .fingerprint = 0xb0797f935c3a91e7, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.17.0",
+    .dependencies = .{
+        .kosm = .{
+            .url = "git+https://git.nnstdios.com/ktisigonos/kosm?ref=master#1d013bcad0ac1dcd95392460bd9c5eb959070cf7",
+            .hash = "kosm-0.0.0-YCShsmwODAA6WccSCLzyNcIhcLr4DZDmo_MvUNx8kfO9",
+        },
+        .beautyline = .{
+            .url = "git+https://gitlab.com/garuda-linux/themes-and-settings/artwork/beautyline.git#07e3736f8be38f9f48cf015d992f56f06e455002",
+            .hash = "N-V-__8AAJ60EgHA-nLXeOZMGnFN7639xJwy8TiWmnQYYGVy",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "root.zig",
+        "App.zig",
+        "BeautyLine.zig",
+        "Gradient.zig",
+        "Nearest.zig",
+        "System.zig",
+        "recolor.zig",
+        "svg.zig",
+        "README.md",
+    },
+}
