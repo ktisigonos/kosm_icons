@@ -28,7 +28,8 @@ pub const Colors = union(enum) {
     /// matches, the first listed wins.
     roles: []const kosm.Theme.Roles.Name,
     /// These colors: `.{ .only = &.{ kosm.hex("2e8799"), kosm.hex("c0ff00") } }`. A list of
-    /// colors only known when the kosmos runs must be a top-level constant.
+    /// colors known only when the kosmos runs is kept:
+    /// `.{ .only = kosm.keep(kosm.Color, &.{ theme.palette.blue }) }`.
     /// Of two equally good matches, the first listed wins.
     only: []const kosm.Color,
 };
