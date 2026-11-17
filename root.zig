@@ -14,11 +14,14 @@ pub const Gradient = @import("Gradient.zig");
 pub const System = @import("System.zig");
 /// How an icon's colors change: which colors they may take and how they move to them.
 pub const Recolor = @import("Recolor.zig");
+/// The colors in an SVG's text, and the text with them replaced: for other packages
+/// recoloring SVGs (cursors) the way icons are.
+pub const svg = @import("svg.zig");
 
 test {
     std.testing.refAllDecls(@This());
     std.testing.refAllDecls(App);
     std.testing.refAllDecls(BeautyLine);
     std.testing.refAllDecls(Recolor);
-    std.testing.refAllDecls(@import("svg.zig"));
+    std.testing.refAllDecls(svg);
 }
