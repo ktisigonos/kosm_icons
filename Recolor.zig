@@ -67,14 +67,14 @@ pub fn from(theme: kosm.Theme) Recolor {
 }
 
 /// Why this recolor cannot run, or null: there must be a color to pick and a blend in 0..1.
-pub fn problem(recolor: Recolor) ?[]const u8 {
+pub fn problem(recolor: *const Recolor) ?[]const u8 {
     if (recolor.candidateCount() == 0) return "recolor has no colors: `.only` or `.roles` is empty, or `.except` leaves out every hue";
     if (recolor.mode == .blend and !(recolor.mode.blend >= 0 and recolor.mode.blend <= 1)) return "recolor's `.blend` is outside 0..1";
     return null;
 }
 
 /// The color `color` becomes. Asserts `problem` is null.
-pub fn apply(recolor: Recolor, color: kosm.Color) kosm.Color {
+pub fn apply(recolor: *const Recolor, color: kosm.Color) kosm.Color {
     if (color.chroma < recolor.gray_chroma) switch (recolor.grays) {
         .ramp => return recolor.ramp(color),
         .keep => return color,
@@ -98,23 +98,23 @@ const Candidate = struct {
     position: kosm.Palette.Hue,
 };
 
-fn candidateCount(recolor: Recolor) usize {
+fn candidateCount(recolor: *const Recolor) usize {
     var count: usize = 0;
     var iterator = recolor.candidates();
     while (iterator.next()) |_| count += 1;
     return count;
 }
 
-fn candidates(recolor: Recolor) Iterator {
+fn candidates(recolor: *const Recolor) Iterator {
     return .{ .recolor = recolor };
 }
 
 const Iterator = struct {
-    recolor: Recolor,
+    recolor: *const Recolor,
     index: usize = 0,
 
     fn next(iterator: *Iterator) ?Candidate {
-        const theme = iterator.recolor.theme;
+        const theme = &iterator.recolor.theme;
         switch (iterator.recolor.colors) {
             .roles => |names| {
                 if (iterator.index >= names.len) return null;
@@ -142,7 +142,7 @@ const Iterator = struct {
     }
 };
 
-fn nearestByHue(recolor: Recolor, color: kosm.Color) kosm.Color {
+fn nearestByHue(recolor: *const Recolor, color: kosm.Color) kosm.Color {
     var best: kosm.Color = undefined;
     var best_distance: f64 = std.math.inf(f64);
     var iterator = recolor.candidates();
@@ -156,7 +156,7 @@ fn nearestByHue(recolor: Recolor, color: kosm.Color) kosm.Color {
     return best;
 }
 
-fn nearestByEye(recolor: Recolor, color: kosm.Color) kosm.Color {
+fn nearestByEye(recolor: *const Recolor, color: kosm.Color) kosm.Color {
     var best: kosm.Color = undefined;
     var best_distance: f64 = std.math.inf(f64);
     var iterator = recolor.candidates();
@@ -171,7 +171,7 @@ fn nearestByEye(recolor: Recolor, color: kosm.Color) kosm.Color {
 }
 
 /// The palette's black-to-white ramp at `color`'s lightness.
-fn ramp(recolor: Recolor, color: kosm.Color) kosm.Color {
+fn ramp(recolor: *const Recolor, color: kosm.Color) kosm.Color {
     const black = recolor.theme.palette.black;
     const white = recolor.theme.palette.white;
     const span = white.lightness - black.lightness;

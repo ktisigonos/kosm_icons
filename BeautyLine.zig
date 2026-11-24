@@ -66,7 +66,7 @@ pub fn from(theme: kosm.Theme) BeautyLine {
 }
 
 /// The field a gradient of BeautyLine's with `stops` maps to, or null.
-pub fn gradient(set: BeautyLine, stops: []const svg.Rgb) ?Gradient {
+pub fn gradient(set: *const BeautyLine, stops: []const svg.Rgb) ?Gradient {
     if (stops.len != 2) return null;
     inline for (sources) |source| {
         if (std.meta.eql(source.stops[0], stops[0]) and std.meta.eql(source.stops[1], stops[1]))

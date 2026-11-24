@@ -73,7 +73,7 @@ const Coloring = union(enum) {
 /// index.theme renamed, links kept, every other file as is.
 fn generate(self: App, output: *kosm.Output, source: []const u8, coloring: Coloring) !void {
     const allocator = output.allocator;
-    const checked: Colors = .{ .allocator = allocator, .coloring = coloring };
+    const checked: Colors = .{ .allocator = allocator, .coloring = &coloring };
     if (checked.rule().problem()) |problem| return output.fail(self.directory, "{s}", .{problem});
     var copies: std.ArrayList(Copy) = .empty;
     var links: std.ArrayList(kosm.Output.LinkOptions) = .empty;
@@ -92,7 +92,7 @@ fn generate(self: App, output: *kosm.Output, source: []const u8, coloring: Color
             .written = .{ .file = destination, .content = "", .group = self.directory },
         });
     }
-    const copying: Copying = .{ .coloring = coloring, .display_name = try output.displayName(self.directory, self.name) };
+    const copying: Copying = .{ .coloring = &coloring, .display_name = try output.displayName(self.directory, self.name) };
     try output.parallel(Copy, copies.items, copying, Copying.copy);
     const files = try allocator.alloc(kosm.Output.VerbatimOptions, copies.items.len);
     for (copies.items, files) |copy, *file| file.* = copy.written;
@@ -112,7 +112,7 @@ const Copy = struct {
 
 /// What every file of the theme is copied with.
 const Copying = struct {
-    coloring: Coloring,
+    coloring: *const Coloring,
     display_name: []const u8,
 
     fn copy(copying: Copying, output: *kosm.Output, item: *Copy) kosm.Output.Error!void {
@@ -163,7 +163,7 @@ fn renamedIndex(allocator: std.mem.Allocator, content: []const u8, name: []const
 /// between threads: its cache is unguarded.
 const Colors = struct {
     allocator: std.mem.Allocator,
-    coloring: Coloring,
+    coloring: *const Coloring,
     cache: std.AutoHashMapUnmanaged(svg.Rgb, svg.Rgb) = .empty,
 
     fn recolorSvg(colors: *Colors, content: []const u8) ![]const u8 {
@@ -182,8 +182,8 @@ const Colors = struct {
 
     /// The color of stop `stop` of a gradient mapped as a whole, or null.
     fn gradientStop(colors: *const Colors, stops: []const svg.Rgb, stop: usize) ?svg.Rgb {
-        const set = switch (colors.coloring) {
-            .beautyline => |set| set,
+        const set = switch (colors.coloring.*) {
+            .beautyline => |*set| set,
             .recolor => return null,
         };
         if (set.all != null) return null;
@@ -197,10 +197,10 @@ const Colors = struct {
         return entry.value_ptr.*;
     }
 
-    fn rule(colors: *const Colors) Recolor {
-        return switch (colors.coloring) {
-            .beautyline => |set| set.all orelse set.rest,
-            .recolor => |recolor| recolor,
+    fn rule(colors: *const Colors) *const Recolor {
+        return switch (colors.coloring.*) {
+            .beautyline => |*set| if (set.all) |*all| all else &set.rest,
+            .recolor => |*recolor| recolor,
         };
     }
 };
@@ -332,7 +332,7 @@ test "BeautyLine's known gradients take their fields' colors and the rest follow
     set.all = null;
     set.blue_cyan = .{ .start = kosm.hex("111111"), .end = kosm.hex("222222") };
     set.rest = flat(kosm.hex("333333"));
-    var colors: Colors = .{ .allocator = fixture.arena.allocator(), .coloring = .{ .beautyline = set } };
+    var colors: Colors = .{ .allocator = fixture.arena.allocator(), .coloring = &.{ .beautyline = set } };
     const icon =
         \\<path fill="url(#a)" stroke="#5570ff"/>
         \\<linearGradient id="a"><stop stop-color="#5570FF"/><stop offset="1" stop-color="#4DD3FF"/></linearGradient>
@@ -345,7 +345,7 @@ test "BeautyLine's known gradients take their fields' colors and the rest follow
     , try colors.recolorSvg(icon));
 
     set.all = flat(kosm.hex("444444"));
-    var all: Colors = .{ .allocator = fixture.arena.allocator(), .coloring = .{ .beautyline = set } };
+    var all: Colors = .{ .allocator = fixture.arena.allocator(), .coloring = &.{ .beautyline = set } };
     const recolored = try all.recolorSvg(icon);
     try testing.expectEqual(5, std.mem.count(u8, recolored, "#444444"));
 }
