@@ -169,26 +169,28 @@ const Colors = struct {
     fn recolorSvg(colors: *Colors, content: []const u8) ![]const u8 {
         const scanned = try svg.scan(colors.allocator, content);
         if (scanned.tokens.len == 0) return content;
+        const mapped_gradients = try colors.allocator.alloc(?MappedGradient, scanned.gradients.len);
+        for (scanned.gradients, mapped_gradients) |stops, *mapped| mapped.* = colors.mappedGradient(stops);
         const replaced = try colors.allocator.alloc(svg.Rgb, scanned.tokens.len);
         var stop: usize = 0;
         for (scanned.tokens, replaced, 0..) |token, *color, index| {
             const same_gradient = index > 0 and token.gradient != null and std.meta.eql(scanned.tokens[index - 1].gradient, token.gradient);
             stop = if (same_gradient) stop + 1 else 0;
-            const mapped = if (token.gradient) |gradient| colors.gradientStop(scanned.gradients[gradient], stop) else null;
-            color.* = mapped orelse try colors.single(token.rgb);
+            const mapped = if (token.gradient) |gradient| mapped_gradients[gradient] else null;
+            color.* = if (mapped) |ends| (if (stop == 0) ends.start else ends.end) else try colors.single(token.rgb);
         }
         return svg.rewrite(colors.allocator, content, scanned, replaced);
     }
 
-    /// The color of stop `stop` of a gradient mapped as a whole, or null.
-    fn gradientStop(colors: *const Colors, stops: []const svg.Rgb, stop: usize) ?svg.Rgb {
+    /// What a gradient with these stops becomes when it is mapped as a whole, or null.
+    fn mappedGradient(colors: *const Colors, stops: []const svg.Rgb) ?MappedGradient {
         const set = switch (colors.coloring.*) {
             .beautyline => |*set| set,
             .recolor => return null,
         };
         if (set.all != null) return null;
         const gradient = set.gradient(stops) orelse return null;
-        return toRgb(if (stop == 0) gradient.start else gradient.end);
+        return .{ .start = toRgb(gradient.start), .end = toRgb(gradient.end) };
     }
 
     fn single(colors: *Colors, rgb: svg.Rgb) !svg.Rgb {
@@ -204,6 +206,9 @@ const Colors = struct {
         };
     }
 };
+
+/// A gradient's first stop and every later stop, as written back.
+const MappedGradient = struct { start: svg.Rgb, end: svg.Rgb };
 
 fn fromRgb(rgb: svg.Rgb) kosm.Color {
     return .fromRgb(.{ .red = channel(rgb.red), .green = channel(rgb.green), .blue = channel(rgb.blue), .alpha = 1 });
