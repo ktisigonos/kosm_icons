@@ -73,28 +73,59 @@ const Coloring = union(enum) {
 /// index.theme renamed, links kept, every other file as is.
 fn generate(self: App, output: *kosm.Output, source: []const u8, coloring: Coloring) !void {
     const allocator = output.allocator;
-    var colors: Colors = .{ .allocator = allocator, .coloring = coloring };
-    if (colors.rule().problem()) |problem| return output.fail(self.directory, "{s}", .{problem});
-    const display_name = try output.displayName(self.directory, self.name);
+    const checked: Colors = .{ .allocator = allocator, .coloring = coloring };
+    if (checked.rule().problem()) |problem| return output.fail(self.directory, "{s}", .{problem});
+    var copies: std.ArrayList(Copy) = .empty;
+    var links: std.ArrayList(kosm.Output.LinkOptions) = .empty;
     for (try output.tree(source)) |entry| {
         // GTK's cache of the source folder; the reload writes one for this folder.
         if (std.mem.eql(u8, entry.path, "icon-theme.cache")) continue;
         const destination = try std.Io.Dir.path.join(allocator, &.{ self.directory, entry.path });
         if (entry.target) |target| {
             const kept = try keptTarget(output, source, entry.path, target);
-            try output.link(.{ .file = destination, .target = kept, .group = self.directory });
+            try links.append(allocator, .{ .file = destination, .target = kept, .group = self.directory });
             continue;
         }
-        const content = try output.read(try std.Io.Dir.path.join(allocator, &.{ source, entry.path }));
-        const written = if (std.mem.eql(u8, entry.path, "index.theme"))
-            try renamedIndex(allocator, content, display_name)
-        else if (isRecolored(entry.path))
+        try copies.append(allocator, .{
+            .path = entry.path,
+            .source = try std.Io.Dir.path.join(allocator, &.{ source, entry.path }),
+            .written = .{ .file = destination, .content = "", .group = self.directory },
+        });
+    }
+    const copying: Copying = .{ .coloring = coloring, .display_name = try output.displayName(self.directory, self.name) };
+    try output.parallel(Copy, copies.items, copying, Copying.copy);
+    const files = try allocator.alloc(kosm.Output.VerbatimOptions, copies.items.len);
+    for (copies.items, files) |copy, *file| file.* = copy.written;
+    try output.verbatimAll(files);
+    try output.linkAll(links.items);
+}
+
+/// One file of the theme, read and recolored by `Copying.copy`.
+const Copy = struct {
+    /// Below the theme's folder.
+    path: []const u8,
+    /// The file in the source theme.
+    source: []const u8,
+    /// The file to write; `Copying.copy` fills its content.
+    written: kosm.Output.VerbatimOptions,
+};
+
+/// What every file of the theme is copied with.
+const Copying = struct {
+    coloring: Coloring,
+    display_name: []const u8,
+
+    fn copy(copying: Copying, output: *kosm.Output, item: *Copy) kosm.Output.Error!void {
+        const content = try output.read(item.source);
+        var colors: Colors = .{ .allocator = output.allocator, .coloring = copying.coloring };
+        item.written.content = if (std.mem.eql(u8, item.path, "index.theme"))
+            try renamedIndex(output.allocator, content, copying.display_name)
+        else if (isRecolored(item.path))
             try colors.recolorSvg(content)
         else
             content;
-        try output.verbatim(.{ .file = destination, .content = written, .group = self.directory });
     }
-}
+};
 
 /// A link's target as it works from `directory`: a relative one pointing outside the theme
 /// becomes the absolute path it pointed to.
@@ -128,7 +159,8 @@ fn renamedIndex(allocator: std.mem.Allocator, content: []const u8, name: []const
     return content;
 }
 
-/// Recolors SVGs, converting each distinct color outside a mapped gradient once.
+/// Recolors SVGs, converting each distinct color outside a mapped gradient once. Not shared
+/// between threads: its cache is unguarded.
 const Colors = struct {
     allocator: std.mem.Allocator,
     coloring: Coloring,
