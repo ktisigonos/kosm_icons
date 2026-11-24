@@ -5,8 +5,8 @@
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .kosm = .{
-            .url = "git+https://git.nnstdios.com/ktisigonos/kosm?ref=master#93ddc3e03397ac0196b27eefd1d97bd316d434be",
-            .hash = "kosm-0.0.0-YCShsjcYDACPboY7Z2E6cF-QZNtLpFpOF7c3cINkmNea",
+            .url = "git+https://git.nnstdios.com/ktisigonos/kosm?ref=master#f6d859ae5c37b2012bb75b10f2e558f3e36153ec",
+            .hash = "kosm-0.0.0-YCShsjJhGwChJLifPnNgdKvF6BvskAvM98V1N3cjOqMF",
         },
         .beautyline = .{
             .url = "git+https://gitlab.com/garuda-linux/themes-and-settings/artwork/beautyline.git#07e3736f8be38f9f48cf015d992f56f06e455002",
